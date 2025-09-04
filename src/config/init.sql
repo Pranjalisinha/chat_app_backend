@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     profile_pic VARCHAR(255) DEFAULT 'default-avatar.png',
-    status VARCHAR(255) DEFAULT 'Hey there! I am using WhatsApp',
+    status VARCHAR(255) DEFAULT 'Hey there! I am using ChatApp.',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
