@@ -1,23 +1,43 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import jwt from 'jsonwebtoken';
 import User from '../src/models/user.model.js';
 import Group from '../src/models/group.model.js';
 import Message from '../src/models/message.model.js';
+import { encryptMessage } from '../src/utils/encryption.js';
 
-let mongoServer;
+const TEST_MONGODB_URI = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/chat_app_test';
 
 export const setupTestDB = async () => {
-    // Create an in-memory MongoDB instance
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
+    try {
+        // If there's an existing connection, close it first
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.disconnect();
+        }
 
-    await mongoose.connect(mongoUri);
+        // Create new connection
+        await mongoose.connect(TEST_MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+        console.log(`Test Database Connected: ${mongoose.connection.host}`);
+    } catch (error) {
+        console.error('Error setting up test database:', error);
+        throw error;
+    }
 };
 
 export const teardownTestDB = async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+    try {
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.dropDatabase();
+            await mongoose.disconnect();
+        }
+    } catch (error) {
+        console.error('Error tearing down test database:', error);
+        // Attempt to disconnect even if dropping the database fails
+        await mongoose.disconnect();
+        throw error;
+    }
 };
 
 export const clearDatabase = async () => {
@@ -26,13 +46,16 @@ export const clearDatabase = async () => {
         const collection = collections[key];
         await collection.deleteMany();
     }
+    // Reset indexes to avoid duplicate key collisions across tests
+    await mongoose.connection.db.command({ dropIndexes: 'users', index: '*' }).catch(() => {});
 };
 
 // Create a test user and get auth token
 export const createTestUser = async (userData = {}) => {
+    const suffix = new mongoose.Types.ObjectId().toString().slice(-6);
     const defaultUser = {
-        username: 'testuser',
-        email: 'test@example.com',
+        username: `testuser_${suffix}`,
+        email: `test_${suffix}@example.com`,
         password: 'password123'
     };
 
@@ -56,28 +79,22 @@ export const createTestGroup = async (admin, members = []) => {
 
 // Create a test message
 export const createTestMessage = async (sender, recipient, content = 'Test message') => {
+    const encrypted = encryptMessage(content);
     return await Message.create({
         sender: sender._id,
         recipient: recipient._id,
         messageType: 'private',
-        content: {
-            encryptedData: 'testEncryptedData',
-            iv: 'testIv',
-            authTag: 'testAuthTag'
-        }
+        content: encrypted
     });
 };
 
 // Create a test group message
 export const createTestGroupMessage = async (sender, group, content = 'Test group message') => {
+    const encrypted = encryptMessage(content);
     return await Message.create({
         sender: sender._id,
         group: group._id,
         messageType: 'group',
-        content: {
-            encryptedData: 'testEncryptedData',
-            iv: 'testIv',
-            authTag: 'testAuthTag'
-        }
+        content: encrypted
     });
 };

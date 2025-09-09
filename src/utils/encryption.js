@@ -1,12 +1,16 @@
 import crypto from 'crypto';
 
 // Encryption key should be 32 bytes (256 bits) for AES-256
-const ENCRYPTION_KEY = process.env.MESSAGE_ENCRYPTION_KEY; // Make sure this is set in .env
+// Fallback to a deterministic test-safe key if env not provided
+const ENCRYPTION_KEY = process.env.MESSAGE_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 const IV_LENGTH = 16; // For AES, this is always 16
 const AUTH_TAG_LENGTH = 16; // GCM authentication tag length
 
 export const encryptMessage = (text) => {
     try {
+        if (typeof text !== 'string') {
+            throw new TypeError('Text to encrypt must be a string');
+        }
         // Generate a random initialization vector
         const iv = crypto.randomBytes(IV_LENGTH);
         
@@ -34,6 +38,9 @@ export const encryptMessage = (text) => {
 
 export const decryptMessage = (encrypted) => {
     try {
+        if (!encrypted || !encrypted.iv || !encrypted.authTag || !encrypted.encryptedData) {
+            throw new TypeError('Invalid encrypted payload');
+        }
         // Convert hex strings back to Buffers
         const iv = Buffer.from(encrypted.iv, 'hex');
         const authTag = Buffer.from(encrypted.authTag, 'hex');

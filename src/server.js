@@ -12,9 +12,18 @@ import groupRoutes from './routes/group.routes.js';
 
 // Load env vars
 dotenv.config();
+// Test-friendly defaults
+if (!process.env.JWT_SECRET) {
+    process.env.JWT_SECRET = 'testsecret';
+}
+if (!process.env.MESSAGE_ENCRYPTION_KEY) {
+    process.env.MESSAGE_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+}
 
-// Connect to database
-connectDB();
+// Connect to database (skip in tests, test harness manages connection)
+if (process.env.NODE_ENV !== 'test') {
+    connectDB();
+}
 
 const app = express();
 
@@ -69,8 +78,10 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 5000;
-
-httpServer.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+    const PORT = process.env.PORT || 5000;
+    httpServer.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}

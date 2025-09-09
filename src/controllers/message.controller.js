@@ -43,7 +43,7 @@ export const sendMessage = async (req, res) => {
                 });
             }
             
-            if (!group.members.includes(req.user._id)) {
+            if (!group.members.some(member => member.toString() === req.user._id.toString())) {
                 return res.status(403).json({
                     status: 'error',
                     error: 'You are not a member of this group'
@@ -82,7 +82,7 @@ export const sendMessage = async (req, res) => {
 // Get private messages between users
 export const getMessages = async (req, res) => {
     try {
-        let messages = await Message.find({
+        const docs = await Message.find({
             messageType: 'private',
             $or: [
                 { sender: req.user._id, recipient: req.params.userId },
@@ -93,29 +93,30 @@ export const getMessages = async (req, res) => {
             .populate('recipient', 'username profilePic')
             .sort('createdAt');
 
-        // Decrypt messages
-        messages = messages.map(msg => {
-            const message = msg.toObject();
-            try {
-                message.decryptedContent = decryptMessage(message.content);
-            } catch (error) {
-                console.error(`Failed to decrypt message ${message._id}:`, error);
-                message.decryptedContent = 'Message decryption failed';
-            }
-            return message;
+        // Mark messages as delivered and read
+        const unreadDocs = docs.filter(doc => {
+            const senderId = (doc.sender?._id || doc.sender).toString();
+            return senderId === req.params.userId && doc.status === 'sent';
         });
 
-        // Mark messages as delivered and read
-        const unreadMessages = messages.filter(
-            msg => msg.sender.toString() === req.params.userId && msg.status === 'sent'
-        );
-
-        for (const msg of unreadMessages) {
-            msg.status = 'read';
-            msg.deliveredAt = msg.deliveredAt || new Date();
-            msg.readAt = new Date();
-            await msg.save();
+        for (const doc of unreadDocs) {
+            doc.status = 'read';
+            doc.deliveredAt = doc.deliveredAt || new Date();
+            doc.readAt = new Date();
+            await doc.save();
         }
+
+        // Prepare response with decrypted content
+        const messages = docs.map(doc => {
+            const obj = doc.toObject();
+            try {
+                obj.decryptedContent = decryptMessage(obj.content);
+            } catch (error) {
+                console.error(`Failed to decrypt message ${obj._id}:`, error);
+                obj.decryptedContent = 'Message decryption failed';
+            }
+            return obj;
+        });
 
         res.json({
             status: 'success',
@@ -143,14 +144,14 @@ export const getGroupMessages = async (req, res) => {
             });
         }
 
-        if (!group.members.includes(req.user._id)) {
+        if (!group.members.some(member => member.toString() === req.user._id.toString())) {
             return res.status(403).json({
                 status: 'error',
                 error: 'You are not a member of this group'
             });
         }
 
-        let messages = await Message.find({
+        const docs = await Message.find({
             messageType: 'group',
             group: groupId
         })
@@ -158,30 +159,44 @@ export const getGroupMessages = async (req, res) => {
             .populate('readBy.user', 'username profilePic')
             .sort('createdAt');
 
-        // Decrypt messages
-        messages = messages.map(msg => {
-            const message = msg.toObject();
-            try {
-                message.decryptedContent = decryptMessage(message.content);
-            } catch (error) {
-                console.error(`Failed to decrypt message ${message._id}:`, error);
-                message.decryptedContent = 'Message decryption failed';
-            }
-            return message;
+        // Mark messages as read by current user
+        const userIdStr = req.user._id.toString();
+        const unreadDocs = docs.filter(doc => {
+            const readBy = Array.isArray(doc.readBy) ? doc.readBy : [];
+            return !readBy.some(r => (
+                r.user?._id?.toString?.() === userIdStr ||
+                r.user?.toString?.() === userIdStr
+            ));
         });
 
-        // Mark messages as read by current user
-        const unreadMessages = messages.filter(
-            msg => !msg.readBy.some(read => read.user._id.toString() === req.user._id.toString())
-        );
-
-        for (const msg of unreadMessages) {
-            msg.readBy.push({
+        for (const doc of unreadDocs) {
+            doc.readBy.push({
                 user: req.user._id,
                 readAt: new Date()
             });
-            await msg.save();
+            await doc.save();
         }
+
+        // Re-populate to ensure readBy.user is populated after updates
+        const populatedDocs = await Message.find({
+            messageType: 'group',
+            group: groupId
+        })
+            .populate('sender', 'username profilePic')
+            .populate('readBy.user', 'username profilePic')
+            .sort('createdAt');
+
+        // Prepare response with decrypted content
+        const messages = populatedDocs.map(doc => {
+            const obj = doc.toObject();
+            try {
+                obj.decryptedContent = decryptMessage(obj.content);
+            } catch (error) {
+                console.error(`Failed to decrypt message ${obj._id}:`, error);
+                obj.decryptedContent = 'Message decryption failed';
+            }
+            return obj;
+        });
 
         res.json({
             status: 'success',

@@ -195,6 +195,7 @@ describe('Group Routes', () => {
             const response = await request(app)
                 .delete(`/api/groups/${group._id}/leave`)
                 .set('Authorization', `Bearer ${token}`);
+            console.log(response.body);
 
             expect(response.status).toBe(200);
             expect(response.body.data.group.admin).toBe(member.user._id.toString());
