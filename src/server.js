@@ -9,6 +9,7 @@ import connectDB from './config/db.js';
 import userRoutes from './routes/user.routes.js';
 import messageRoutes from './routes/message.routes.js';
 import groupRoutes from './routes/group.routes.js';
+import conversationRoutes from './routes/conversation.routes.js';
 
 // Load env vars
 dotenv.config();
@@ -35,6 +36,7 @@ app.use(express.json());
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 const httpServer = createServer(app);
 

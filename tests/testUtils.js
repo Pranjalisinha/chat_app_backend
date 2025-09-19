@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../src/models/user.model.js';
 import Group from '../src/models/group.model.js';
 import Message from '../src/models/message.model.js';
+import Conversation from '../src/models/conversation.model.js';
 import { encryptMessage } from '../src/utils/encryption.js';
 
 const TEST_MONGODB_URI = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/chat_app_test';
@@ -97,4 +98,30 @@ export const createTestGroupMessage = async (sender, group, content = 'Test grou
         messageType: 'group',
         content: encrypted
     });
+};
+
+// Create a test conversation
+export const createTestConversation = async (user1, user2) => {
+    return await Conversation.create({
+        participants: [user1._id, user2._id]
+    });
+};
+
+// Create a test conversation with message
+export const createTestConversationWithMessage = async (sender, recipient, content = 'Test conversation message') => {
+    const conversation = await Conversation.findOrCreateConversation(sender._id, recipient._id);
+    const encrypted = encryptMessage(content);
+    const message = await Message.create({
+        sender: sender._id,
+        recipient: recipient._id,
+        messageType: 'private',
+        content: encrypted
+    });
+    
+    // Update conversation with last message
+    conversation.lastMessage = message._id;
+    conversation.lastMessageAt = message.createdAt;
+    await conversation.save();
+    
+    return { conversation, message };
 };
