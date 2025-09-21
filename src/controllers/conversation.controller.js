@@ -1,6 +1,7 @@
 import Conversation from '../models/conversation.model.js';
 import User from '../models/user.model.js';
 import Message from '../models/message.model.js';
+import FriendRequest from '../models/friendRequest.model.js';
 
 // Get all conversations for a user
 export const getUserConversations = async (req, res) => {
@@ -255,6 +256,174 @@ export const getConversationMessages = async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting conversation messages:', error);
+        res.status(500).json({
+            status: 'error',
+            error: 'Server error'
+        });
+    }
+};
+
+// Send friend request
+export const sendFriendRequest = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const senderId = req.user._id;
+
+        // Check if target user exists
+        const targetUser = await User.findById(userId);
+        if (!targetUser) {
+            return res.status(404).json({
+                status: 'error',
+                error: 'User not found'
+            });
+        }
+
+        // Prevent sending friend request to self
+        if (userId === senderId.toString()) {
+            return res.status(400).json({
+                status: 'error',
+                error: 'Cannot send friend request to yourself'
+            });
+        }
+
+        // Check if friend request already exists
+        const existingRequest = await FriendRequest.findOne({
+            sender: senderId,
+            recipient: userId,
+            status: { $in: ['pending', 'accepted'] }
+        });
+
+        if (existingRequest) {
+            return res.status(400).json({
+                status: 'error',
+                error: 'Friend request already exists'
+            });
+        }
+
+        // Create new friend request
+        const friendRequest = await FriendRequest.create({
+            sender: senderId,
+            recipient: userId,
+            status: 'pending'
+        });
+
+        res.status(201).json({
+            status: 'success',
+            data: {
+                friendRequest
+            }
+        });
+    } catch (error) {
+        console.error('Error sending friend request:', error);
+        res.status(500).json({
+            status: 'error',
+            error: 'Server error'
+        });
+    }
+};
+
+// Accept friend request
+export const acceptFriendRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const userId = req.user._id;
+
+        const friendRequest = await FriendRequest.findOne({
+            _id: requestId,
+            recipient: userId,
+            status: 'pending'
+        });
+
+        if (!friendRequest) {
+            return res.status(404).json({
+                status: 'error',
+                error: 'Friend request not found'
+            });
+        }
+
+        // Update request status
+        friendRequest.status = 'accepted';
+        await friendRequest.save();
+
+        // Create or update conversation for the new friends
+        await Conversation.findOrCreateConversation(
+            friendRequest.sender,
+            friendRequest.recipient
+        );
+
+        res.json({
+            status: 'success',
+            data: {
+                friendRequest
+            }
+        });
+    } catch (error) {
+        console.error('Error accepting friend request:', error);
+        res.status(500).json({
+            status: 'error',
+            error: 'Server error'
+        });
+    }
+};
+
+// Reject friend request
+export const rejectFriendRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const userId = req.user._id;
+
+        const friendRequest = await FriendRequest.findOne({
+            _id: requestId,
+            recipient: userId,
+            status: 'pending'
+        });
+
+        if (!friendRequest) {
+            return res.status(404).json({
+                status: 'error',
+                error: 'Friend request not found'
+            });
+        }
+
+        friendRequest.status = 'rejected';
+        await friendRequest.save();
+
+        res.json({
+            status: 'success',
+            data: {
+                friendRequest
+            }
+        });
+    } catch (error) {
+        console.error('Error rejecting friend request:', error);
+        res.status(500).json({
+            status: 'error',
+            error: 'Server error'
+        });
+    }
+};
+
+// Get friend requests
+export const getFriendRequests = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { status = 'pending' } = req.query;
+
+        const requests = await FriendRequest.find({
+            recipient: userId,
+            status
+        })
+        .populate('sender', 'username email profilePic')
+        .sort({ createdAt: -1 });
+
+        res.json({
+            status: 'success',
+            data: {
+                requests
+            }
+        });
+    } catch (error) {
+        console.error('Error getting friend requests:', error);
         res.status(500).json({
             status: 'error',
             error: 'Server error'

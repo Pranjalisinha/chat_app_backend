@@ -27,6 +27,14 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: 'online',
     },
+    friends: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    }],
+    friendsRequests: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'FriendRequest',
+    }],
     lastSeen: {
         type: Date,
         default: Date.now,
