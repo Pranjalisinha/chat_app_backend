@@ -144,37 +144,3 @@ export const getUsers = async (req, res) => {
         });
     }
 };
-export const getUsersToaddFriend = async (req, res) => {
-    try {
-        const users = await User.find({ _id: { $ne: req.user._id } })
-            .select('-password')
-            .sort('-lastSeen'); 
-        const friends = await User.findById(req.user._id).populate('friends', 'username email profilePic status lastSeen');
-        const friendsIds = friends.friends.map(friend => friend._id.toString());
-        const filteredUsers = users.filter(user => !friendsIds.includes(user._id.toString()));
-        res.json({
-            status: 'success',
-            data: { users: filteredUsers },
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: 'error',   
-            error: 'Server error',
-        });
-    }
-};
-export const getFriends = async (req, res) => {
-    try {
-        const user = await User.findById(req.user._id).populate('friends', 'username email profilePic status lastSeen');
-
-        res.json({
-            status: 'success',
-            data: { friends: user.friends },
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: 'error',
-            error: 'Server error',
-        });
-    }
-};

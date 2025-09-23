@@ -10,7 +10,6 @@ import userRoutes from './routes/user.routes.js';
 import messageRoutes from './routes/message.routes.js';
 import groupRoutes from './routes/group.routes.js';
 import conversationRoutes from './routes/conversation.routes.js';
-import friendRequestRoutes from './routes/friendRequest.routes.js';
 
 // Load env vars
 dotenv.config();
@@ -38,7 +37,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/conversations', conversationRoutes);
-app.use('/api/friends', friendRequestRoutes);
 
 const httpServer = createServer(app);
 
